@@ -44,19 +44,15 @@ app.get("/scrape", function(req, res) {
       var link = $(this).find('a').attr('href');
       var img = $(this).find('img').attr('src');
       var summary = $(this).find('p').text();
-      // In the currently selected element, look at its child elements (i.e., its a-tags),
-      // then save the values for any "href" attributes that the child elements may have
-     
   
       // Save these results in an object that we'll push into the results array we defined earlier
       results.push({
         title : title,
         link : link,
         img : img,
-        summary : summary
+        summary : summary,
+        saved: false
       })
-    
-
             // Create a new Article using the `result` object built from scraping
             db.Article.create(results)
             .then(function(dbArticle) {
@@ -67,9 +63,16 @@ app.get("/scrape", function(req, res) {
               // If an error occurred, log it
               res.json(error);
             });
+      
+      })
+ 
+
+  //   //   // Log the results once you've looped through each of the elements found with cheerio
+      console.log(results);
+    }).catch(function(err){
+      if (err) throw err
     });
-
-
+ })
     app.get("/articles", function(req, res) {
       db.Article.find({})
       .then(function(dbArticle) {
@@ -78,16 +81,29 @@ app.get("/scrape", function(req, res) {
       .catch(function(err) {
         res.json(err);
       })
-    })
-  
-    // Log the results once you've looped through each of the elements found with cheerio
-    console.log(results);
-  }).catch(function(err){
-    if (err) throw err
-  });
-});
+    });
 
+    app.put("/api/clear", function(req, res) {
+      db.Article.remove({saved:false})
+      .then(function(dbArticle) {
+        res.json(dbArticle);
+      })
+      .catch(function(err) {
+        res.json(err);
+      });
+    });
   
+    app.get("/articles/:_id", function(req, res) {
+      db.Article.findOneAndUpdate('"' + req.param.id + '"',{saved: true})
+      .then(function(dbArticle) {
+        res.json(dbArticle);
+      })
+      .catch(function(err) {
+        res.json(err);
+      });
+    });
+
+
 
 
 
