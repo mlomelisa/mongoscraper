@@ -27,12 +27,40 @@ app.use(express.json());
 app.use(express.static("public"));
 
 // Connect to the Mongo DB
-mongoose.connect("mongodb://localhost/mongosedb", { useNewUrlParser: true });
+var MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost/mongosedb"
+mongoose.connect(MONGODB_URI);
 
 // Routes
 
-// A GET route for scraping the echoJS website
-app.get("/scrape", function(req, res) {
+
+//AJAX request for any unsaved headlines
+app.get("/api/headlines", function(req, res) {
+  let saved = req.query.saved;
+  console.log(saved)
+  db.Article.find({saved:saved})
+  .then(function(dbArticle) {
+    res.json(dbArticle);
+  })
+  .catch(function(err) {
+    res.json(err);
+  })
+});
+
+// Article to save
+
+app.put("/api/headlines/:id", function(req, res) {
+  db.Article.findOneAndUpdate({_id:req.params.id}, {saved:true})
+  .then(function(dbArticle) {
+    res.json(dbArticle);
+  })
+  .catch(function(err) {
+    res.json(err);
+  })
+});
+
+// Scrape New Articles
+
+app.get("/api/fetch", function(req, res) {
 	axios.get("http://www.nytimes.com/").then(function(response) {
 		var $ = cheerio.load(response.data);
 		
@@ -53,58 +81,99 @@ app.get("/scrape", function(req, res) {
         summary : summary,
         saved: false
       })
-            // Create a new Article using the `result` object built from scraping
-            db.Article.create(results)
+      console.log(results)
+          // Create a new Article using the `result` object built from scraping
+          // db.Article.update({
+          //   query: {results},
+          //   upsert: true
+          // })
+          //   .then(function(dbArticle) {
+              
+          //     res.json(dbArticle);
+          //   })
+          //   .catch(function(error) {
+          //     // If an error occurred, log it
+              
+          //     res.json(error);
+          //   });
+
+             db.Article.create(results)
             .then(function(dbArticle) {
-              // View the added result in the console
-              console.log(dbArticle);
+              
+              res.json(dbArticle);
             })
             .catch(function(error) {
               // If an error occurred, log it
+              
               res.json(error);
             });
-      
-      })
+
+          
+      }) 
+     // Send a message to the client
+  res.send("Scrape Complete");
+  });
  
-
-  //   //   // Log the results once you've looped through each of the elements found with cheerio
-      console.log(results);
-    }).catch(function(err){
-      if (err) throw err
-    });
- })
-    app.get("/articles", function(req, res) {
-      db.Article.find({})
-      .then(function(dbArticle) {
-        res.json(dbArticle);
-      })
-      .catch(function(err) {
-        res.json(err);
-      })
-    });
-
-    app.put("/api/clear", function(req, res) {
-      db.Article.remove({saved:false})
-      .then(function(dbArticle) {
-        res.json(dbArticle);
-      })
-      .catch(function(err) {
-        res.json(err);
-      });
-    });
-  
-    app.get("/articles/:_id", function(req, res) {
-      db.Article.findOneAndUpdate('"' + req.param.id + '"',{saved: true})
-      .then(function(dbArticle) {
-        res.json(dbArticle);
-      })
-      .catch(function(err) {
-        res.json(err);
-      });
-    });
+});
 
 
+ //Clear Articles
 
+ app.get("/api/clear", function(req, res) {
+  db.Article.deleteMany({save:false})
+  .then(function(dbArticle) {
+    res.json(dbArticle);
+  })
+  .catch(function(err) {
+    res.json(err);
+  })
+});
+
+// Delete Article
+
+app.delete("/api/headlines/:id", function(req, res) {
+  db.Article.findOneAndDelete({_id:req.param.id})
+  .then(function(dbArticle) {
+    res.json(dbArticle);
+  })
+  .catch(function(err) {
+    res.json(err);
+  })
+});
+
+//Pull notes for a specific article
+app.get("/api/notes/:id", function(req, res) {
+  db.Article.findOne({_id:req.param.id})
+  .populate("note")
+  .then(function(dbArticle) {
+    res.json(dbArticle);
+  })
+  .catch(function(err) {
+    res.json(err);
+  })
+});
+
+//Save note to specific article
+app.post("/api/notes", function(req, res) {
+  db.Note.create(req.body) 
+ .then(function(dbNote) {
+    return db.Article.findOneAndUpdate({_id:req.body.id}, {note: dbNote._id}, {new: true});
+  })
+  .catch(function(err) {
+    res.json(err);
+  })
+});
+
+// Delete Note
+app.delete("/api/notes/:id", function(req, res) {
+  db.Note.tfindOneAndDelee({_id:req.param.id}) 
+ .then(function(dbNote) {
+    return db.Article.findOneAndDelete({_id:req.body.id}, {note: dbNote._id});
+  })
+  .catch(function(err) {
+    res.json(err);
+  })
+});
 
 
 // Start the server
